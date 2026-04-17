@@ -10,6 +10,7 @@ const FB_CONFIG = {
   appId: "1:1022922743941:web:dbd6ed05b650f21e7649ec"
 };
 
+
 // ── FIREBASE SDK (caricato dinamicamente) ────────────────────────────────
 let db_fs = null, auth_fb = null, googleProvider = null;
 
