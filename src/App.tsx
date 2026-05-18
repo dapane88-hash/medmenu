@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 
-// ── FIREBASE CONFIG ───────────────────────────────────────────────────────
 const FB_CONFIG = {
   apiKey: "AIzaSyDXZlQZmpOci7r_mp_czRMHNlJsH9NHeYU",
   authDomain: "medmenu-687bd.firebaseapp.com",
@@ -10,37 +9,30 @@ const FB_CONFIG = {
   appId: "1:1022922743941:web:dbd6ed05b650f21e7649ec"
 };
 
-
-// ── FIREBASE SDK (caricato dinamicamente) ────────────────────────────────
-let db_fs = null, auth_fb = null, googleProvider = null;
-
-const loadFirebase = async () => {
-  if (db_fs) return;
-  try {
-    const [{ initializeApp }, { getFirestore, doc, setDoc, getDoc }, { getAuth, GoogleAuthProvider, signInWithPopup, signOut }] =
-      await Promise.all([
-        import("https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"),
-        import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"),
-        import("https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"),
-      ]);
-    const app = initializeApp(FB_CONFIG);
-    db_fs = { inst: getFirestore(app), doc, setDoc, getDoc };
-    auth_fb = { inst: getAuth(app), signInWithPopup, signOut };
-    googleProvider = new GoogleAuthProvider();
-  } catch (e) { console.error("Firebase load error", e); }
+let _auth=null,_db=null,_gProvider=null;
+const initFB=async()=>{
+  if(_auth)return true;
+  try{
+    const[{initializeApp},{getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,updateProfile},{getFirestore,doc,setDoc,getDoc}]=await Promise.all([
+      import("https://esm.sh/firebase@10.7.1/app"),
+      import("https://esm.sh/firebase@10.7.1/auth"),
+      import("https://esm.sh/firebase@10.7.1/firestore"),
+    ]);
+    const app=initializeApp(FB_CONFIG);
+    _auth={inst:getAuth(app),signInWithPopup,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,updateProfile};
+    _db={inst:getFirestore(app),doc,setDoc,getDoc};
+    _gProvider=new GoogleAuthProvider();
+    return true;
+  }catch(e){console.error(e);return false;}
 };
-
-const saveToCloud = async (uid, data) => {
-  if (!db_fs) return;
-  const { inst, doc, setDoc } = db_fs;
-  await setDoc(doc(inst, "users", uid), data);
+const saveToCloud=async(uid,data)=>{
+  if(!_db)return;
+  await _db.setDoc(_db.doc(_db.inst,"users",uid),data);
 };
-
-const loadFromCloud = async (uid) => {
-  if (!db_fs) return null;
-  const { inst, doc, getDoc } = db_fs;
-  const snap = await getDoc(doc(inst, "users", uid));
-  return snap.exists() ? snap.data() : null;
+const loadFromCloud=async(uid)=>{
+  if(!_db)return null;
+  const snap=await _db.getDoc(_db.doc(_db.inst,"users",uid));
+  return snap.exists()?snap.data():null;
 };
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────
@@ -741,7 +733,7 @@ function ProfileTab({profile, user, onUpdate, onLogout}) {
   const set = (k,v) => setF(p=>({...p,[k]:v}));
   const tgt = calcTgt(profile);
   const handleLogout = async () => {
-    try { await auth_fb.signOut(auth_fb.inst); onLogout(); } catch(e) {}
+    try { await _auth.signOut(_auth.inst); onLogout(); } catch(e) {}
   };
   return (
     <div>
@@ -816,15 +808,11 @@ export default function App() {
   const curMenu = wkMenus[curWk]||initWkMenu();
 
   useEffect(()=>{
-    loadFirebase().then(()=>{
-      if(!auth_fb) { setAuthState("loggedout"); return; }
-      const { onAuthStateChanged } = auth_fb;
-      // fallback senza onAuthStateChanged
-      const unsubFn = auth_fb.inst.onAuthStateChanged
-        ? auth_fb.inst.onAuthStateChanged
-        : null;
-      if(!unsubFn){ setAuthState("loggedout"); return; }
-      const unsub = unsubFn(async fbUser => {
+    const timeout = setTimeout(()=>setAuthState("loggedout"), 8000);
+    initFB().then(ok=>{
+      if(!ok){clearTimeout(timeout);setAuthState("loggedout");return;}
+      const unsub = _auth.onAuthStateChanged(_auth.inst, async fbUser => {
+        clearTimeout(timeout);
         if(fbUser){
           setUser(fbUser);
           try{
@@ -837,22 +825,25 @@ export default function App() {
               setCustomDB(data.customDB||[]);
               setRatings(data.ratings||{});
               setAuthState("ready");
-            } else {
-              setAuthState("setup");
-            }
-          }catch(e){ setAuthState("setup"); }
+            } else { setAuthState("setup"); }
+          }catch(e){ console.error("Firestore:",e); setAuthState("setup"); }
         } else {
           setUser(null);
           setAuthState("loggedout");
         }
       });
-      return ()=>unsub && unsub();
+      return ()=>{clearTimeout(timeout);unsub();};
     });
   },[]);
 
   const persist = (p,wm,cw,sm,cdb,rt) => {
     if(!user) return;
-    saveToCloud(user.uid, {profile:p,wkMenus:wm,curWk:cw,savedMenus:sm,customDB:cdb,ratings:rt}).catch(()=>{});
+    // Rimuove valori undefined che Firestore non accetta
+    const clean = obj => JSON.parse(JSON.stringify(obj));
+    saveToCloud(user.uid, clean({
+      profile:p, wkMenus:wm, curWk:cw,
+      savedMenus:sm, customDB:cdb, ratings:rt
+    })).catch(e=>console.error("Salvataggio fallito:",e));
   };
 
   const handleSetup = p => {
