@@ -1,10 +1,4 @@
 import { useState, useEffect } from "react";
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
-import { getAuth, GoogleAuthProvider, signInWithPopup, 
-         signOut, onAuthStateChanged, 
-         createUserWithEmailAndPassword, 
-         signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 
 const FB_CONFIG = {
   apiKey: "AIzaSyDXZlQZmpOci7r_mp_czRMHNlJsH9NHeYU",
@@ -15,14 +9,31 @@ const FB_CONFIG = {
   appId: "1:1022922743941:web:dbd6ed05b650f21e7649ec"
 };
 
-const _app = initializeApp(FB_CONFIG);
-const _db = { inst: getFirestore(_app), doc, setDoc, getDoc };
-const _auth = { inst: getAuth(_app), signInWithPopup, signOut, 
-                onAuthStateChanged, createUserWithEmailAndPassword, 
-                signInWithEmailAndPassword, updateProfile };
-const _gProvider = new GoogleAuthProvider();
-
-const initFB = async () => true;
+let _auth=null,_db=null,_gProvider=null;
+const initFB=async()=>{
+  if(_auth)return true;
+  try{
+    const[{initializeApp},{getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,updateProfile},{getFirestore,doc,setDoc,getDoc}]=await Promise.all([
+      import("https://esm.sh/firebase@10.7.1/app"),
+      import("https://esm.sh/firebase@10.7.1/auth"),
+      import("https://esm.sh/firebase@10.7.1/firestore"),
+    ]);
+    const app=initializeApp(FB_CONFIG);
+    _auth={inst:getAuth(app),signInWithPopup,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,updateProfile};
+    _db={inst:getFirestore(app),doc,setDoc,getDoc};
+    _gProvider=new GoogleAuthProvider();
+    return true;
+  }catch(e){console.error(e);return false;}
+};
+const saveToCloud=async(uid,data)=>{
+  if(!_db)return;
+  await _db.setDoc(_db.doc(_db.inst,"users",uid),data);
+};
+const loadFromCloud=async(uid)=>{
+  if(!_db)return null;
+  const snap=await _db.getDoc(_db.doc(_db.inst,"users",uid));
+  return snap.exists()?snap.data():null;
+};
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────
 const MEALS = [{k:"colazione",l:"Colazione",ml:"Colazione",i:"☀️",c:"#E07340"},{k:"spuntino",l:"Spuntino",ml:"Spuntino",i:"🍎",c:"#E9A820"},{k:"pranzo",l:"Primo Piatto",ml:"Pranzo",i:"🍝",c:"#2A9D8F"},{k:"cena",l:"Secondo Piatto",ml:"Cena",i:"🥩",c:"#5C7CFA"}];
