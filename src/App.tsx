@@ -242,7 +242,7 @@ function LoginScreen({onLogin}) {
       onLogin(result.user);
     } catch(e) {
       if(e.code==="auth/email-already-in-use") setErr("Email già registrata. Prova ad accedere.");
-      else setErr("Errore di registrazione. Riprova.");
+      else setErr(e.code + ": " + e.message);
     }
     setLoading(false);
   };
