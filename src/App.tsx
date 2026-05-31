@@ -1,4 +1,9 @@
 import { useState, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, 
+         onAuthStateChanged, createUserWithEmailAndPassword, 
+         signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 
 const FB_CONFIG = {
   apiKey: "AIzaSyDXZlQZmpOci7r_mp_czRMHNlJsH9NHeYU",
@@ -9,30 +14,26 @@ const FB_CONFIG = {
   appId: "1:1022922743941:web:dbd6ed05b650f21e7649ec"
 };
 
-let _auth=null,_db=null,_gProvider=null;
-const initFB=async()=>{
-  if(_auth)return true;
-  try{
-    const[{initializeApp},{getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,updateProfile},{getFirestore,doc,setDoc,getDoc}]=await Promise.all([
-      import("https://esm.sh/firebase@10.7.1/app"),
-      import("https://esm.sh/firebase@10.7.1/auth"),
-      import("https://esm.sh/firebase@10.7.1/firestore"),
-    ]);
-    const app=initializeApp(FB_CONFIG);
-    _auth={inst:getAuth(app),signInWithPopup,signOut,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,updateProfile};
-    _db={inst:getFirestore(app),doc,setDoc,getDoc};
-    _gProvider=new GoogleAuthProvider();
-    return true;
-  }catch(e){console.error(e);return false;}
+const _app = initializeApp(FB_CONFIG);
+const _authInst = getAuth(_app);
+const _dbInst = getFirestore(_app);
+const _gProvider = new GoogleAuthProvider();
+
+const _auth = {
+  inst: _authInst,
+  signInWithPopup, signOut, onAuthStateChanged,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile
 };
-const saveToCloud=async(uid,data)=>{
-  if(!_db)return;
-  await _db.setDoc(_db.doc(_db.inst,"users",uid),data);
+const _db = { inst: _dbInst, doc, setDoc, getDoc };
+
+const initFB = async () => true;
+
+const saveToCloud = async (uid, data) => {
+  await setDoc(doc(_dbInst, "users", uid), data);
 };
-const loadFromCloud=async(uid)=>{
-  if(!_db)return null;
-  const snap=await _db.getDoc(_db.doc(_db.inst,"users",uid));
-  return snap.exists()?snap.data():null;
+const loadFromCloud = async (uid) => {
+  const snap = await getDoc(doc(_dbInst, "users", uid));
+  return snap.exists() ? snap.data() : null;
 };
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────
